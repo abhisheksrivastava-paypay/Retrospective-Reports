@@ -42,9 +42,9 @@ Go to **Settings → Secrets and variables → Actions → Secrets** and add:
 
 | Secret Name | Required | Description |
 |-------------|----------|-------------|
-| `JIRA_PAT` | ✅ Yes | Jira Personal Access Token |
+| `JIRA_API_KEY` | ✅ Yes | Jira Personal Access Token |
 | `CONFLUENCE_API_KEY` | ✅ Yes | Confluence Personal Access Token |
-| `LINEARB_TOKEN` | ❌ Optional | LinearB API key (skip if not using LinearB) |
+| `LINEARB_API_KEY` | ❌ Optional | LinearB API key (skip if not using LinearB) |
 
 ### Step 2: Add Repository Variables
 

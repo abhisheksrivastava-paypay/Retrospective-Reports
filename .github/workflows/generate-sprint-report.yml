@@ -64,9 +64,9 @@ jobs:
       LINEARB_TEAM_ID: ${{ vars.LINEARB_TEAM_ID || '89945' }}
       
       # Authentication (from secrets)
-      JIRA_PAT: ${{ secrets.JIRA_PAT }}
+      JIRA_API_KEY: ${{ secrets.JIRA_API_KEY }}
       CONFLUENCE_API_KEY: ${{ secrets.CONFLUENCE_API_KEY }}
-      LINEARB_TOKEN: ${{ secrets.LINEARB_TOKEN }}
+      LINEARB_API_KEY: ${{ secrets.LINEARB_API_KEY }}
 
     steps:
       - name: Checkout repository
@@ -121,8 +121,8 @@ jobs:
 
       - name: Validate secrets
         run: |
-          if [ -z "$JIRA_PAT" ]; then
-            echo "::error::JIRA_PAT secret is not set"
+          if [ -z "$JIRA_API_KEY" ]; then
+            echo "::error::JIRA_API_KEY secret is not set"
             exit 1
           fi
           if [ -z "$CONFLUENCE_API_KEY" ]; then
@@ -131,8 +131,8 @@ jobs:
           fi
           echo "✅ Required secrets are configured"
           
-          if [ -z "$LINEARB_TOKEN" ]; then
-            echo "::warning::LINEARB_TOKEN is not set. LinearB charts will be skipped."
+          if [ -z "$LINEARB_API_KEY" ]; then
+            echo "::warning::LINEARB_API_KEY is not set. LinearB charts will be skipped."
           else
             echo "✅ LinearB token configured"
           fi
