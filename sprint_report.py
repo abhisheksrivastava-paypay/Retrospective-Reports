@@ -69,19 +69,19 @@ CONF_BASE = os.getenv("CONF_BASE", "https://paypay-corp.rickcloud.jp/wiki").rstr
 
 
 # Tokens (baseline secret names kept)
+# Supports multiple env var names for flexibility with different CI systems
+JIRA_PAT  = _get_secret("Jira_Token", "JIRA_PAT") or os.getenv("JIRA_API_KEY", "")
+CONF_PAT  = _get_secret("Confluence_Token", "CONFLUENCE_API_KEY") or os.getenv("CONF_PAT", "")
+LINEARB_TOKEN = _get_secret("LinearB_Token", "LINEARB_TOKEN") or os.getenv("LINEARB_API_KEY", "")
 
-JIRA_PAT  = _get_secret("Jira_Token", "JIRA_PAT")
-
-CONF_PAT  = _get_secret("Confluence_Token", "CONF_PAT")
-
-LINEARB_TOKEN = _get_secret("LinearB_Token", "LINEARB_TOKEN")
-
-
+# CI/CD mode: set to skip interactive prompts
+CI_MODE = os.getenv("CI", "").lower() in ("true", "1", "yes") or os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+# Sprint selection for non-interactive mode: index (1-5) or sprint ID
+SPRINT_INDEX = os.getenv("SPRINT_INDEX", "1")  # Default to most recent sprint
+SPRINT_ID = os.getenv("SPRINT_ID", "")  # Specific sprint ID (overrides SPRINT_INDEX)
 
 if not JIRA_PAT or not CONF_PAT:
-
-    print("Missing Jira/Confluence tokens (Jira_Token / Confluence_Token). Set Colab Secrets or env.", file=sys.stderr)
-
+    print("Missing Jira/Confluence tokens. Set env vars: JIRA_PAT/JIRA_API_KEY and CONFLUENCE_API_KEY/CONF_PAT", file=sys.stderr)
     sys.exit(1)
 
 
@@ -3147,39 +3147,65 @@ def list_all_closed_prefix_sorted(board_id, prefix):
 
 
 def pick_from_list(items, how_many=5, label_key="name"):
-
+    """
+    Pick a sprint from the list.
+    In CI mode, uses SPRINT_ID or SPRINT_INDEX environment variables.
+    In interactive mode, prompts the user.
+    """
     shown = items[:how_many] if items else []
 
     if not shown:
-
         print(f'No closed sprints found starting with "{SPRINT_NAME_PREFIX}".', file=sys.stderr)
-
         sys.exit(2)
 
-    print("\n== Pick a closed sprint (most recent first) ==")
-
+    print("\n== Available closed sprints (most recent first) ==")
     for i, it in enumerate(shown, 1):
-
         label = it.get(label_key) or it.get("name") or "(no name)"
-
         cd = it.get("_complete_raw") or it.get("completeDate") or it.get("endDate")
-
         print(f"{i:2d}. {label} (ID {it.get('id')}), complete/end: {cd}")
 
-    while True:
-
+    # CI/Non-interactive mode: use environment variables
+    if CI_MODE:
+        # If SPRINT_ID is specified, find the matching sprint
+        if SPRINT_ID:
+            for it in shown:
+                if str(it.get("id")) == str(SPRINT_ID):
+                    print(f"\n[CI] Selected sprint by ID: {it.get('name')} (ID {it.get('id')})")
+                    return it
+            # Also check in all items, not just shown
+            for it in items:
+                if str(it.get("id")) == str(SPRINT_ID):
+                    print(f"\n[CI] Selected sprint by ID: {it.get('name')} (ID {it.get('id')})")
+                    return it
+            print(f"[CI] Sprint ID {SPRINT_ID} not found in available sprints.", file=sys.stderr)
+            sys.exit(2)
+        
+        # Use SPRINT_INDEX (1-based)
         try:
+            idx = int(SPRINT_INDEX)
+            if 1 <= idx <= len(shown):
+                selected = shown[idx - 1]
+                print(f"\n[CI] Selected sprint by index {idx}: {selected.get('name')} (ID {selected.get('id')})")
+                return selected
+            else:
+                print(f"[CI] SPRINT_INDEX {idx} out of range (1-{len(shown)}). Using default (1).", file=sys.stderr)
+                selected = shown[0]
+                print(f"\n[CI] Selected sprint: {selected.get('name')} (ID {selected.get('id')})")
+                return selected
+        except ValueError:
+            print(f"[CI] Invalid SPRINT_INDEX '{SPRINT_INDEX}'. Using default (1).", file=sys.stderr)
+            selected = shown[0]
+            print(f"\n[CI] Selected sprint: {selected.get('name')} (ID {selected.get('id')})")
+            return selected
 
+    # Interactive mode: prompt user
+    while True:
+        try:
             raw = input(f"Pick a number (1-{len(shown)}) [default=1]: ").strip() or "1"
-
             idx = int(raw)
-
             if 1 <= idx <= len(shown): return shown[idx-1]
-
         except Exception:
-
             pass
-
         print("Invalid selection. Try again.")
 
 

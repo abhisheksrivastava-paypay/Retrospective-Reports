@@ -1,0 +1,163 @@
+name: Generate Sprint Retrospective Report
+
+on:
+  # Manual trigger with inputs
+  workflow_dispatch:
+    inputs:
+      sprint_selection:
+        description: 'Sprint selection method'
+        required: true
+        type: choice
+        options:
+          - 'Latest (most recent closed sprint)'
+          - 'Second most recent'
+          - 'Third most recent'
+          - 'Fourth most recent'
+          - 'Fifth most recent'
+          - 'Specific Sprint ID'
+        default: 'Latest (most recent closed sprint)'
+      
+      sprint_id:
+        description: 'Sprint ID (only if "Specific Sprint ID" is selected above)'
+        required: false
+        type: string
+        default: ''
+      
+      board_name:
+        description: 'Jira Board Name'
+        required: false
+        type: string
+        default: 'GVRE Board'
+      
+      sprint_prefix:
+        description: 'Sprint Name Prefix (filter)'
+        required: false
+        type: string
+        default: 'GVRE'
+
+  # Optional: Schedule to run automatically (e.g., every Monday at 9 AM IST)
+  # schedule:
+  #   - cron: '30 3 * * 1'  # 3:30 AM UTC = 9:00 AM IST
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    
+    env:
+      # API Endpoints
+      JIRA_BASE: ${{ vars.JIRA_BASE || 'https://paypay-corp.rickcloud.jp/jira' }}
+      CONF_BASE: ${{ vars.CONF_BASE || 'https://paypay-corp.rickcloud.jp/wiki' }}
+      
+      # Confluence Settings
+      SPACE_KEY: ${{ vars.SPACE_KEY || 'ProductDevDiv' }}
+      PARENT_ID: ${{ vars.PARENT_ID || '656711904' }}
+      
+      # Jira Settings
+      BOARD_NAME: ${{ inputs.board_name || vars.BOARD_NAME || 'GVRE Board' }}
+      SPRINT_NAME_PREFIX: ${{ inputs.sprint_prefix || vars.SPRINT_NAME_PREFIX || 'GVRE' }}
+      
+      # Epic Keys
+      TD_EPIC_KEY: ${{ vars.TD_EPIC_KEY || 'GV-2398' }}
+      RETRO_EPIC_KEY: ${{ vars.RETRO_EPIC_KEY || 'GV-2527' }}
+      
+      # LinearB Settings
+      LINEARB_TEAM_ID: ${{ vars.LINEARB_TEAM_ID || '89945' }}
+      
+      # Authentication (from secrets)
+      JIRA_PAT: ${{ secrets.JIRA_PAT }}
+      CONFLUENCE_API_KEY: ${{ secrets.CONFLUENCE_API_KEY }}
+      LINEARB_TOKEN: ${{ secrets.LINEARB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Determine sprint selection
+        id: sprint
+        run: |
+          # Map the selection choice to SPRINT_INDEX
+          case "${{ inputs.sprint_selection }}" in
+            "Latest (most recent closed sprint)")
+              echo "SPRINT_INDEX=1" >> $GITHUB_ENV
+              echo "SPRINT_ID=" >> $GITHUB_ENV
+              ;;
+            "Second most recent")
+              echo "SPRINT_INDEX=2" >> $GITHUB_ENV
+              echo "SPRINT_ID=" >> $GITHUB_ENV
+              ;;
+            "Third most recent")
+              echo "SPRINT_INDEX=3" >> $GITHUB_ENV
+              echo "SPRINT_ID=" >> $GITHUB_ENV
+              ;;
+            "Fourth most recent")
+              echo "SPRINT_INDEX=4" >> $GITHUB_ENV
+              echo "SPRINT_ID=" >> $GITHUB_ENV
+              ;;
+            "Fifth most recent")
+              echo "SPRINT_INDEX=5" >> $GITHUB_ENV
+              echo "SPRINT_ID=" >> $GITHUB_ENV
+              ;;
+            "Specific Sprint ID")
+              echo "SPRINT_INDEX=" >> $GITHUB_ENV
+              echo "SPRINT_ID=${{ inputs.sprint_id }}" >> $GITHUB_ENV
+              ;;
+            *)
+              # Default to latest
+              echo "SPRINT_INDEX=1" >> $GITHUB_ENV
+              echo "SPRINT_ID=" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Validate secrets
+        run: |
+          if [ -z "$JIRA_PAT" ]; then
+            echo "::error::JIRA_PAT secret is not set"
+            exit 1
+          fi
+          if [ -z "$CONFLUENCE_API_KEY" ]; then
+            echo "::error::CONFLUENCE_API_KEY secret is not set"
+            exit 1
+          fi
+          echo "✅ Required secrets are configured"
+          
+          if [ -z "$LINEARB_TOKEN" ]; then
+            echo "::warning::LINEARB_TOKEN is not set. LinearB charts will be skipped."
+          else
+            echo "✅ LinearB token configured"
+          fi
+
+      - name: Generate Sprint Report
+        run: python sprint_report.py
+
+      - name: Report completion
+        if: success()
+        run: |
+          echo "## ✅ Sprint Report Generated Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Board:** ${{ env.BOARD_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Sprint Prefix:** ${{ env.SPRINT_NAME_PREFIX }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Selection:** ${{ inputs.sprint_selection || 'Latest' }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.sprint_id }}" ]; then
+            echo "**Sprint ID:** ${{ inputs.sprint_id }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The report has been published to Confluence." >> $GITHUB_STEP_SUMMARY
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "## ❌ Sprint Report Generation Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+
