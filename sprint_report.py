@@ -3320,36 +3320,49 @@ def main():
 
 
 
-    # Team members (unique, bots filtered)
+    # Team members (unique, bots filtered, only from Story/Task types, exclude cancelled)
 
     def unique_assignees_from_sprint(sprint_id):
-
         regex = re.compile(EXCLUDE_ASSIGNEE_REGEX, re.I) if EXCLUDE_ASSIGNEE_REGEX else None
-
-        issues, _ = agile_sprint_issues_paginated(sprint_id, None, ["assignee"], max_pages=200, page_size=200)
-
+        # Fetch issues with assignee, issuetype, and status to filter properly
+        fields = ["assignee", "issuetype", "status"]
+        issues, _ = agile_sprint_issues_paginated(sprint_id, None, fields, max_pages=200, page_size=200)
+        
+        # Only include Story/Task family issue types
+        allowed_types = {t.lower() for t in STORY_TYPES} | {"story", "task", "bug", "sub-task", "subtask"}
+        
         seen, names = set(), []
-
         for it in issues:
-
-            person = (it.get("fields") or {}).get("assignee")
-
-            if not person: continue
-
+            f = it.get("fields") or {}
+            
+            # Filter by issue type
+            itype = ((f.get("issuetype") or {}).get("name") or "").strip().lower()
+            if itype not in allowed_types:
+                continue
+            
+            # Exclude cancelled/not needed statuses
+            status_name = ((f.get("status") or {}).get("name") or "").strip().lower()
+            if status_name in AUDIT_EXCLUDED_STATUS_NAMES:
+                continue
+            
+            person = f.get("assignee")
+            if not person:
+                continue
+            
             acc_id = person.get("accountId") or person.get("name") or person.get("emailAddress")
-
             display = person.get("displayName")
-
             email = person.get("emailAddress") or ""
-
-            if not acc_id or not display: continue
-
-            if regex and (regex.search(display) or (email and regex.search(email))): continue
-
-            if acc_id in seen: continue
-
-            seen.add(acc_id); names.append(display)
-
+            
+            if not acc_id or not display:
+                continue
+            if regex and (regex.search(display) or (email and regex.search(email))):
+                continue
+            if acc_id in seen:
+                continue
+            
+            seen.add(acc_id)
+            names.append(display)
+        
         return sorted(names)
 
 
