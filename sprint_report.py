@@ -1573,12 +1573,8 @@ def render_burndown_png_bytes(report_json, sprint_id, committed_sp, board_id):
     sprint = (report_json or {}).get("sprint", {}) or {}
 
     start_dt = parse_jira_date(sprint.get("startDate")) or datetime.datetime.now(datetime.timezone.utc)
-
-    # >>> Use actual completion if present
-
-    end_dt   = parse_jira_date(sprint.get("completeDate") or sprint.get("endDate")) \
-
-               or (start_dt + datetime.timedelta(days=14))
+    # Use actual completion if present
+    end_dt = parse_jira_date(sprint.get("completeDate") or sprint.get("endDate")) or (start_dt + datetime.timedelta(days=14))
 
 
 
